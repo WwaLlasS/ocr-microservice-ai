@@ -13,7 +13,7 @@ class AIService:
         
         genai.configure(api_key=api_key)
         # Usamos 1.5 Flash por ser rápido y tener un tier gratis generoso
-        self.model = genai.GenerativeModel('gemini-1.5-flash')
+        self.model = genai.GenerativeModel('gemini-1.5-flash-latest')
 
     async def process_text_with_requirements(self, raw_text: str, requirements: str):
         """

@@ -12,6 +12,7 @@ import uvicorn
 import io
 from services.ocr_engine import ocr_service
 from services.pdf_processor import pdf_processor
+from services.word_processor import word_processor
 from services.ai_service import ai_service
 from utils.schemas import MultiOCRResponse, OCRResponse
 
@@ -54,6 +55,9 @@ async def extract_data(
                 import numpy as np
                 image = Image.open(io.BytesIO(content))
                 raw_text = ocr_service.extract_text(np.array(image))
+            
+            elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                raw_text = word_processor.extract_text(content)
             
             else:
                 results.append(OCRResponse(

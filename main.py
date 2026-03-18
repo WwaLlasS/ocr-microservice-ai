@@ -44,19 +44,34 @@ async def extract_data(
             raw_text = ""
             
             if file.content_type == "application/pdf":
-                images = pdf_processor.pdf_to_images(content)
-                page_texts = []
-                for img in images:
-                    page_texts.append(ocr_service.extract_text(img))
-                raw_text = "\n".join(page_texts)
+                print(f"[{file.filename}] Intentando extracción de texto nativo...")
+                raw_text = pdf_processor.extract_native_text(content)
                 
+                # Si el texto es muy corto (ej: menos de 20 caracteres), 
+                # probablemente es un escaneo y necesitamos OCR visual.
+                if len(raw_text.strip()) < 20:
+                    print(f"[{file.filename}] No se detectó texto nativo. Iniciando OCR visual (proceso lento)...")
+                    images = pdf_processor.pdf_to_images(content)
+                    print(f"[{file.filename}] PDF convertido. {len(images)} páginas encontradas.")
+                    page_texts = []
+                    for i, img in enumerate(images):
+                        print(f"[{file.filename}] Procesando OCR de página {i+1}/{len(images)}...")
+                        page_texts.append(ocr_service.extract_text(img))
+                    raw_text = "\n".join(page_texts)
+                    print(f"[{file.filename}] OCR finalizado.")
+                else:
+                    print(f"[{file.filename}] Texto nativo extraído con éxito (Fast Path).")
+            
             elif file.content_type in ["image/png", "image/jpeg", "image/jpg"]:
                 from PIL import Image
                 import numpy as np
                 image = Image.open(io.BytesIO(content))
+                print(f"[{file.filename}] Procesando OCR de imagen...")
                 raw_text = ocr_service.extract_text(np.array(image))
+                print(f"[{file.filename}] OCR finalizado.")
             
             elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+                print(f"[{file.filename}] Procesando Word...")
                 raw_text = word_processor.extract_text(content)
             
             else:
@@ -68,7 +83,9 @@ async def extract_data(
                 ))
                 continue
 
+            print(f"[{file.filename}] Enviando texto a Gemini...")
             refined_data = await ai_service.process_text_with_requirements(raw_text, requirements)
+            print(f"[{file.filename}] Respuesta de Gemini recibida.")
             
             results.append(OCRResponse(
                 filename=file.filename,

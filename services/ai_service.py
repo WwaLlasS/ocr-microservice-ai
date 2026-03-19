@@ -9,30 +9,30 @@ class AIService:
     def __init__(self):
         api_key = os.getenv("GEMINI_API_KEY")
         if not api_key:
-            raise ValueError("GEMINI_API_KEY no encontrada en las variables de entorno.")
+            raise ValueError("GEMINI_API_KEY not found in environment variables.")
         
         genai.configure(api_key=api_key)
-        # Usamos 1.5 Flash por ser rápido y tener un tier gratis generoso
+        # We use 1.5 Flash as it is fast and has a generous free tier
         self.model = genai.GenerativeModel('gemini-flash-latest')
 
     async def process_text_with_requirements(self, raw_text: str, requirements: str):
         """
-        Envía el texto extraído a Gemini para que lo procese según los requerimientos.
+        Sends the extracted text to Gemini to process it according to the requirements.
         """
         prompt = f"""
-        Actúa como un experto en extracción de datos. A continuación te proporciono un texto extraído mediante OCR.
+        Act as a data extraction expert. Below I provide text extracted via OCR.
         
-        TEXTO EXTRAÍDO:
+        EXTRACTED TEXT:
         ---
         {raw_text}
         ---
         
-        REQUERIMIENTOS DEL USUARIO:
+        USER REQUIREMENTS:
         {requirements}
         
-        INSTRUCCIONES:
-        1. Extrae la información solicitada basándote en el texto.
-        2. Responde ÚNICAMENTE en formato JSON válido.
+        INSTRUCTIONS:
+        1. Extract the requested information based on the text.
+        2. Respond ONLY in valid JSON format.
         """
         
         response = self.model.generate_content(prompt)
@@ -40,25 +40,25 @@ class AIService:
 
     async def process_image_with_requirements(self, image_data: bytes, requirements: str):
         """
-        Envía una imagen directamente a Gemini (Vision) para OCR y extracción estructurada.
+        Sends an image directly to Gemini (Vision) for OCR and structured extraction.
         """
         prompt = f"""
-        Actúa como un experto en procesamiento de documentos y OCR. 
-        Analiza la imagen adjunta y extrae la información según los siguientes requerimientos:
+        Act as an expert in document processing and OCR. 
+        Analyze the attached image and extract the information according to the following requirements:
         
-        REQUERIMIENTOS:
+        REQUIREMENTS:
         {requirements}
         
-        INSTRUCCIONES:
-        1. Realiza el OCR de la imagen.
-        2. Extrae y estructura los datos solicitados.
-        3. Si es un documento de identidad (pasaporte, visa, etc.), extrae nombres, fechas y números con total precisión.
-        4. Responde ÚNICAMENTE en formato JSON válido.
+        INSTRUCTIONS:
+        1. Perform OCR on the image.
+        2. Extract and structure the requested data.
+        3. If it is an identity document (passport, visa, etc.), extract names, dates, and numbers with total accuracy.
+        4. Respond ONLY in valid JSON format.
         """
         
-        # Preparar la parte de la imagen para la API de Gemini
+        # Prepare the image part for the Gemini API
         image_part = {
-            "mime_type": "image/jpeg", # La mayoría de nuestras conversiones son a JPEG
+            "mime_type": "image/jpeg", # Most of our conversions are to JPEG
             "data": image_data
         }
         
@@ -67,7 +67,7 @@ class AIService:
 
     def _clean_and_parse_json(self, text: str):
         """
-        Limpia bloques markdown y parsea el JSON de la respuesta.
+        Cleans markdown blocks and parses the JSON response.
         """
         clean_response = text.strip()
         if clean_response.startswith("```json"):
@@ -78,6 +78,6 @@ class AIService:
         try:
             return json.loads(clean_response)
         except json.JSONDecodeError:
-            return {"error": "No se pudo formatear la respuesta como JSON", "raw_response": text}
+            return {"error": "Could not format the response as JSON", "raw_response": text}
 
 ai_service = AIService()

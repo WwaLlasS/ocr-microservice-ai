@@ -1,7 +1,7 @@
 import os
 from dotenv import load_dotenv
 
-# Configuración de variables de entorno ANTES de importar servicios
+# Environment variables configuration BEFORE importing services
 load_dotenv()
 os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -12,7 +12,7 @@ from typing import List
 import uvicorn
 import io
 from starlette.concurrency import run_in_threadpool
-# from services.ocr_engine import ocr_service # Eliminado: Usamos Gemini Vision
+# from services.ocr_engine import ocr_service # Removed: Using Gemini Vision
 from services.pdf_processor import pdf_processor
 from services.word_processor import word_processor
 from services.ai_service import ai_service
@@ -20,7 +20,7 @@ from utils.schemas import MultiOCRResponse, OCRResponse
 
 app = FastAPI(title="OCR Microservice with Gemini Vision")
 
-# Configurar CORS
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -36,7 +36,7 @@ async def root():
 @app.post("/extract", response_model=MultiOCRResponse)
 async def extract_data(
     files: List[UploadFile] = File(...),
-    requirements: str = Form("Extrae toda la información relevante")
+    requirements: str = Form("Extract all relevant information")
 ):
     results = []
     
@@ -46,34 +46,34 @@ async def extract_data(
             refined_data = {}
             
             if file.content_type == "application/pdf":
-                print(f"[{file.filename}] Intentando extracción de texto nativo...")
+                print(f"[{file.filename}] Attempting native text extraction...")
                 raw_text = pdf_processor.extract_native_text(content)
                 
                 if len(raw_text.strip()) < 20:
-                    print(f"[{file.filename}] No se detectó texto nativo. Iniciando Gemini Vision por página...")
+                    print(f"[{file.filename}] No native text detected. Starting Gemini Vision by page...")
                     images = pdf_processor.pdf_to_images(content)
-                    print(f"[{file.filename}] PDF convertido. {len(images)} páginas encontradas.")
+                    print(f"[{file.filename}] PDF converted. {len(images)} pages found.")
                     
-                    # Para PDFs escaneados, procesamos cada página con Vision y combinamos
-                    # Nota: Gemini también puede recibir múltiples imágenes, pero por ahora seguimos el flujo de páginas
+                    # For scanned PDFs, process each page with Vision and combine
+                    # Note: Gemini can also receive multiple images, but for now we follow the page flow
                     combined_data = {}
                     for i, img_bytes in enumerate(images):
-                        print(f"[{file.filename}] Procesando página {i+1}/{len(images)} con Gemini Vision...")
+                        print(f"[{file.filename}] Processing page {i+1}/{len(images)} with Gemini Vision...")
                         page_data = await ai_service.process_image_with_requirements(img_bytes, requirements)
                         combined_data.update(page_data)
                     refined_data = combined_data
                 else:
-                    print(f"[{file.filename}] Texto nativo extraído con éxito. Refinando con Gemini...")
+                    print(f"[{file.filename}] Native text successfully extracted. Refining with Gemini...")
                     refined_data = await ai_service.process_text_with_requirements(raw_text, requirements)
             
             elif file.content_type in ["image/png", "image/jpeg", "image/jpg"]:
-                print(f"[{file.filename}] Procesando imagen directamente con Gemini Vision...")
-                # No necesitamos redimensionar localmente, Gemini soporta alta resolución
+                print(f"[{file.filename}] Processing image directly with Gemini Vision...")
+                # No need to resize locally, Gemini supports high resolution
                 refined_data = await ai_service.process_image_with_requirements(content, requirements)
-                print(f"[{file.filename}] Procesamiento Vision finalizado.")
+                print(f"[{file.filename}] Vision processing finished.")
             
             elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
-                print(f"[{file.filename}] Procesando Word...")
+                print(f"[{file.filename}] Processing Word...")
                 raw_text = word_processor.extract_text(content)
                 refined_data = await ai_service.process_text_with_requirements(raw_text, requirements)
             
@@ -82,7 +82,7 @@ async def extract_data(
                     filename=file.filename,
                     status="error",
                     extracted_data={},
-                    error=f"Tipo de archivo no soportado: {file.content_type}"
+                    error=f"Unsupported file type: {file.content_type}"
                 ))
                 continue
 
@@ -93,7 +93,7 @@ async def extract_data(
             ))
 
         except Exception as e:
-            print(f"Error procesando {file.filename}: {e}")
+            print(f"Error processing {file.filename}: {e}")
             results.append(OCRResponse(
                 filename=file.filename,
                 status="error",

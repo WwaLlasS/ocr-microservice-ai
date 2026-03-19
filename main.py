@@ -12,13 +12,13 @@ from typing import List
 import uvicorn
 import io
 from starlette.concurrency import run_in_threadpool
-from services.ocr_engine import ocr_service
+# from services.ocr_engine import ocr_service # Eliminado: Usamos Gemini Vision
 from services.pdf_processor import pdf_processor
 from services.word_processor import word_processor
 from services.ai_service import ai_service
 from utils.schemas import MultiOCRResponse, OCRResponse
 
-app = FastAPI(title="OCR Microservice with PaddleOCR and Gemini")
+app = FastAPI(title="OCR Microservice with Gemini Vision")
 
 # Configurar CORS
 app.add_middleware(
@@ -31,7 +31,7 @@ app.add_middleware(
 
 @app.get("/")
 async def root():
-    return {"message": "OCR Microservice is running"}
+    return {"message": "OCR Microservice (Gemini Vision) is running"}
 
 @app.post("/extract", response_model=MultiOCRResponse)
 async def extract_data(
@@ -43,45 +43,39 @@ async def extract_data(
     for file in files:
         try:
             content = await file.read()
-            raw_text = ""
+            refined_data = {}
             
             if file.content_type == "application/pdf":
                 print(f"[{file.filename}] Intentando extracción de texto nativo...")
                 raw_text = pdf_processor.extract_native_text(content)
                 
-                # Si el texto es muy corto (ej: menos de 20 caracteres), 
-                # probablemente es un escaneo y necesitamos OCR visual.
                 if len(raw_text.strip()) < 20:
-                    print(f"[{file.filename}] No se detectó texto nativo. Iniciando OCR visual (proceso lento)...")
+                    print(f"[{file.filename}] No se detectó texto nativo. Iniciando Gemini Vision por página...")
                     images = pdf_processor.pdf_to_images(content)
                     print(f"[{file.filename}] PDF convertido. {len(images)} páginas encontradas.")
-                    page_texts = []
-                    for i, img in enumerate(images):
-                        print(f"[{file.filename}] Procesando OCR de página {i+1}/{len(images)}...")
-                        page_texts.append(await run_in_threadpool(ocr_service.extract_text, img))
-                    raw_text = "\n".join(page_texts)
-                    print(f"[{file.filename}] OCR finalizado.")
+                    
+                    # Para PDFs escaneados, procesamos cada página con Vision y combinamos
+                    # Nota: Gemini también puede recibir múltiples imágenes, pero por ahora seguimos el flujo de páginas
+                    combined_data = {}
+                    for i, img_bytes in enumerate(images):
+                        print(f"[{file.filename}] Procesando página {i+1}/{len(images)} con Gemini Vision...")
+                        page_data = await ai_service.process_image_with_requirements(img_bytes, requirements)
+                        combined_data.update(page_data)
+                    refined_data = combined_data
                 else:
-                    print(f"[{file.filename}] Texto nativo extraído con éxito (Fast Path).")
+                    print(f"[{file.filename}] Texto nativo extraído con éxito. Refinando con Gemini...")
+                    refined_data = await ai_service.process_text_with_requirements(raw_text, requirements)
             
             elif file.content_type in ["image/png", "image/jpeg", "image/jpg"]:
-                from PIL import Image
-                import numpy as np
-                image = Image.open(io.BytesIO(content)).convert("RGB")
-                
-                # Redimensionar si es excesivamente grande para evitar cuellos de botella
-                MAX_DIM = 2500
-                if max(image.size) > MAX_DIM:
-                    print(f"[{file.filename}] Redimensionando imagen de {image.size} a {MAX_DIM}...")
-                    image.thumbnail((MAX_DIM, MAX_DIM))
-                
-                print(f"[{file.filename}] Procesando OCR de imagen...")
-                raw_text = await run_in_threadpool(ocr_service.extract_text, np.array(image))
-                print(f"[{file.filename}] OCR finalizado.")
+                print(f"[{file.filename}] Procesando imagen directamente con Gemini Vision...")
+                # No necesitamos redimensionar localmente, Gemini soporta alta resolución
+                refined_data = await ai_service.process_image_with_requirements(content, requirements)
+                print(f"[{file.filename}] Procesamiento Vision finalizado.")
             
             elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
                 print(f"[{file.filename}] Procesando Word...")
                 raw_text = word_processor.extract_text(content)
+                refined_data = await ai_service.process_text_with_requirements(raw_text, requirements)
             
             else:
                 results.append(OCRResponse(
@@ -92,11 +86,6 @@ async def extract_data(
                 ))
                 continue
 
-            print(f"[{file.filename}] Texto crudo extraído:\n{'-'*40}\n{raw_text}\n{'-'*40}")
-            print(f"[{file.filename}] Enviando texto a Gemini...")
-            refined_data = await ai_service.process_text_with_requirements(raw_text, requirements)
-            print(f"[{file.filename}] Respuesta de Gemini recibida.")
-            
             results.append(OCRResponse(
                 filename=file.filename,
                 status="success",
@@ -104,6 +93,7 @@ async def extract_data(
             ))
 
         except Exception as e:
+            print(f"Error procesando {file.filename}: {e}")
             results.append(OCRResponse(
                 filename=file.filename,
                 status="error",
@@ -114,5 +104,4 @@ async def extract_data(
     return MultiOCRResponse(results=results)
 
 if __name__ == "__main__":
-    # Usamos 127.0.0.1 para evitar problemas de resolución de nombres en macOS
     uvicorn.run(app, host="127.0.0.1", port=8000)

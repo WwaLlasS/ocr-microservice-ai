@@ -3,79 +3,57 @@
 Este es un microservicio construido con **FastAPI** diseñado para extraer texto de diversos tipos de documentos (PDF, Imágenes, Word) utilizando **PaddleOCR** y librerías nativas, para luego refinar y estructurar la información extraída según requerimientos específicos utilizando Inteligencia Artificial (**Google Gemini 2.5 Flash**).
 
 ## 🚀 Características Principales
+# OCR Microservice (Gemini Vision)
 
-*   **API RESTful:** Expone un endpoint `/extract` preparado para recibir múltiples archivos simultáneamente.
-*   **Soporte Multiformato:**
-    *   **Imágenes** (PNG, JPEG, JPG): Extracción visual mediante el motor de redes neuronales de **PaddleOCR**.
-    *   **Documentos PDF**: Extracción de texto nativo rápido (fast path). Si el PDF es un escaneo (sin texto seleccionable), realiza una conversión automática de las páginas a imágenes y aplica OCR.
-    *   **Documentos Word** (.docx): Extracción de texto y tablas usando `python-docx`.
-*   **Procesamiento de IA (Gemini):** Una vez extraído el texto crudo (raw text), el microservicio se comunica con Google Gemini para interpretar el texto y extraer únicamente la información solicitada en formato **JSON estructurado**.
-*   **Optimizado para macOS:** Incluye configuraciones específicas para evitar "deadlocks" de `OpenMP` con PaddleOCR en sistemas macOS e hilos (threads) de FastAPI.
+Este microservicio permite extraer información estructurada de diversos tipos de documentos (PDF, Imágenes, Word) utilizando **Gemini Vision** de Google para documentos visuales y extracción nativa para documentos de texto.
 
-## 🛠️ Tecnologías Utilizadas
+## Características
 
-*   **Python 3**
-*   **FastAPI** & **Uvicorn** (Servidor web asíncrono)
-*   **PaddleOCR** & **PaddlePaddle** (Motor de Reconocimiento Óptico de Caracteres)
-*   **Google Generative AI SDK** (Integración con modelos Gemini)
-*   **Pillow (PIL)** & **pdf2image** (Procesamiento de imágenes y PDFs)
-*   **python-docx** (Extracción de archivos de Word)
+- 📸 **Extracción de Imágenes**: Usa las capacidades de visión de Gemini para procesar JPG, PNG y JPEG con altísima precisión.
+- 📄 **Procesamiento de PDFs**: 
+    - **Fast Path**: Extracción nativa de texto si el PDF es digital.
+    - **OCR Path (Vision)**: Si el PDF es un escaneo, se convierte a imagen y se procesa con Gemini Vision.
+- 📝 **Soporte Word**: Extracción de texto de archivos `.docx`.
+- 🤖 **IA Generativa**: Refinamiento y estructuración de datos mediante el modelo `gemini-flash-latest`.
+- ⚡ **Optimizado para macOS**: Sin dependencias pesadas de C++ (PaddleOCR/PyTorch), eliminando bloqueos y problemas de memoria.
 
-## 📋 Requisitos Previos
+## Tecnologías
 
-1.  Python 3.9 o superior.
-2.  Tener instalada la herramienta `poppler` (necesaria para `pdf2image`):
-    *   En macOS: `brew install poppler`
-    *   En Ubuntu: `sudo apt-get install poppler-utils`
-3.  Una API Key de Google Gemini válida.
+- **FastAPI**: Framwork web asíncrono.
+- **Google Generative AI**: Motor de visión y procesamiento de lenguaje.
+- **Pillow**: Procesamiento de imágenes.
+- **pdf2image**: Conversión de PDFs a imágenes.
+- **python-docx**: Manejo de archivos Word.
 
-## ⚙️ Puesta a Punto (Instalación)
+## Requisitos y Puesta a Punto
 
-1. **Clonar el repositorio:**
-   ```bash
-   git clone git@github.com:WwaLlasS/ocr-microservice-ai.git
-   cd ocr-microservice-ai
-   ```
+### 1. Variables de Entorno
+Crea un archivo `.env` en la raíz con tu API Key:
+```env
+GEMINI_API_KEY=tu_api_key_aqui
+```
 
-2. **Crear y activar un entorno virtual (Recomendado):**
-   ```bash
-   python3 -m venv .venvs/ocr-service-env
-   source .venvs/ocr-service-env/bin/activate
-   ```
+### 2. Instalación de Dependencias
+```bash
+# Se recomienda usar el entorno virtual especificado
+pip install -r requirements.txt
+```
 
-3. **Instalar dependencias:**
-   ```bash
-   pip install -r requirements.txt
-   ```
+*Nota: Asegúrate de tener `poppler` instalado en tu sistema para el procesamiento de PDFs (`brew install poppler` en macOS).*
 
-4. **Configurar variables de entorno:**
-   Crea un archivo llamado `.env` en la raíz del proyecto y agrega tu clave de API de Gemini:
-   ```env
-   GEMINI_API_KEY=tu_api_key_aqui
-   ```
-
-## 🏃 Modo de Uso
-
-Para levantar el servidor de desarrollo, simplemente ejecuta el archivo principal:
-
+### 3. Ejecución
 ```bash
 python3 main.py
 ```
-*El sistema iniciará el servidor `uvicorn` en `http://127.0.0.1:8000`.*
+El servicio estará disponible en `http://127.0.0.1:8000`.
+
+## Uso del API
 
 ### Endpoint: `POST /extract`
 
-Este es el endpoint habilitado para procesar los documentos. Acepta requests tipo `multipart/form-data`.
+Envía uno o más archivos mediante un formulario `multipart/form-data`.
 
 **Parámetros:**
-*   `files` (lista de `File`): Los archivos que deseas procesar (Puedes subir múltiples archivos de diferente extensión a la vez).
-*   `requirements` (`Form`): Una cadena de texto natural con las instrucciones concretas de lo que deseas extraer de esos documentos.
-
-**Ejemplo usando cURL:**
-
-```bash
-curl -X 'POST' \
-  'http://127.0.0.1:8000/extract' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
   -F 'requirements="Extrae el Nombre Completo, Número de Identidad, y Fecha de Nacimiento. Devuelve formato JSON."' \

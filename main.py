@@ -4,12 +4,14 @@ from dotenv import load_dotenv
 # Configuración de variables de entorno ANTES de importar servicios
 load_dotenv()
 os.environ["PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK"] = "True"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
 
 from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from typing import List
 import uvicorn
 import io
+from starlette.concurrency import run_in_threadpool
 from services.ocr_engine import ocr_service
 from services.pdf_processor import pdf_processor
 from services.word_processor import word_processor
@@ -56,7 +58,7 @@ async def extract_data(
                     page_texts = []
                     for i, img in enumerate(images):
                         print(f"[{file.filename}] Procesando OCR de página {i+1}/{len(images)}...")
-                        page_texts.append(ocr_service.extract_text(img))
+                        page_texts.append(await run_in_threadpool(ocr_service.extract_text, img))
                     raw_text = "\n".join(page_texts)
                     print(f"[{file.filename}] OCR finalizado.")
                 else:
@@ -65,9 +67,16 @@ async def extract_data(
             elif file.content_type in ["image/png", "image/jpeg", "image/jpg"]:
                 from PIL import Image
                 import numpy as np
-                image = Image.open(io.BytesIO(content))
+                image = Image.open(io.BytesIO(content)).convert("RGB")
+                
+                # Redimensionar si es excesivamente grande para evitar cuellos de botella
+                MAX_DIM = 2500
+                if max(image.size) > MAX_DIM:
+                    print(f"[{file.filename}] Redimensionando imagen de {image.size} a {MAX_DIM}...")
+                    image.thumbnail((MAX_DIM, MAX_DIM))
+                
                 print(f"[{file.filename}] Procesando OCR de imagen...")
-                raw_text = ocr_service.extract_text(np.array(image))
+                raw_text = await run_in_threadpool(ocr_service.extract_text, np.array(image))
                 print(f"[{file.filename}] OCR finalizado.")
             
             elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":

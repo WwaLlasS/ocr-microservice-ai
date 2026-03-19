@@ -1,104 +1,105 @@
-# OCR Microservice AI
+# OCR Microservice (Gemini Vision)
 
-Este es un microservicio construido con **FastAPI** diseñado para extraer texto de diversos tipos de documentos (PDF, Imágenes, Word) utilizando **PaddleOCR** y librerías nativas, para luego refinar y estructurar la información extraída según requerimientos específicos utilizando Inteligencia Artificial (**Google Gemini 2.5 Flash**).
+This is a microservice built with **FastAPI** designed to extract structured information from various types of documents (PDF, Images, Word). It uses Google's **Gemini Vision** for visual document extraction and native libraries for text documents, refining the data into JSON format according to specific user requirements.
 
-## 🚀 Características Principales
+## 🚀 Main Features
 
-*   **API RESTful:** Expone un endpoint `/extract` preparado para recibir múltiples archivos simultáneamente.
-*   **Soporte Multiformato:**
-    *   **Imágenes** (PNG, JPEG, JPG): Extracción visual mediante el motor de redes neuronales de **PaddleOCR**.
-    *   **Documentos PDF**: Extracción de texto nativo rápido (fast path). Si el PDF es un escaneo (sin texto seleccionable), realiza una conversión automática de las páginas a imágenes y aplica OCR.
-    *   **Documentos Word** (.docx): Extracción de texto y tablas usando `python-docx`.
-*   **Procesamiento de IA (Gemini):** Una vez extraído el texto crudo (raw text), el microservicio se comunica con Google Gemini para interpretar el texto y extraer únicamente la información solicitada en formato **JSON estructurado**.
-*   **Optimizado para macOS:** Incluye configuraciones específicas para evitar "deadlocks" de `OpenMP` con PaddleOCR en sistemas macOS e hilos (threads) de FastAPI.
+- 📸 **Image Extraction**: Uses **Gemini Vision** (`gemini-flash-latest`) capabilities to process JPG, PNG, and JPEG with extremely high precision, understanding the full visual context.
+- 📄 **PDF Processing**: 
+    - **Fast Path (Native)**: Native text extraction with `fitz` (PyMuPDF) if the PDF contains pure digital text.
+    - **OCR Path (Vision)**: If the PDF is a scan (non-selectable text), each page is automatically converted to an image and asynchronously processed using Gemini Vision.
+- 📝 **Word Support**: Direct text extraction from `.docx` files using `python-docx`.
+- 🤖 **Immediate JSON Extraction**: Gemini doesn't just read text; it is instructed to directly return the structured information requested by the user in JSON format.
+- ⚡ **Lightweight and macOS Optimized**: **Zero local OCR dependencies** (like PaddleOCR, PyTorch, or Tesseract). This massively removes project bloat, compatibility issues, and historical multithreading *deadlocks* related to Apple Silicon.
 
-## 🛠️ Tecnologías Utilizadas
+## 🛠️ Technologies Used
 
-*   **Python 3**
-*   **FastAPI** & **Uvicorn** (Servidor web asíncrono)
-*   **PaddleOCR** & **PaddlePaddle** (Motor de Reconocimiento Óptico de Caracteres)
-*   **Google Generative AI SDK** (Integración con modelos Gemini)
-*   **Pillow (PIL)** & **pdf2image** (Procesamiento de imágenes y PDFs)
-*   **python-docx** (Extracción de archivos de Word)
+- **FastAPI** & **Uvicorn** (Asynchronous web server)
+- **Google Generative AI SDK** (Main "Vision OCR" and LLM engine)
+- **Pillow (PIL)** & **pdf2image** (Image and PDF processing and conversion)
+- **python-docx** (Word file extraction)
 
-## 📋 Requisitos Previos
+## 📋 Requirements and Setup
 
-1.  Python 3.9 o superior.
-2.  Tener instalada la herramienta `poppler` (necesaria para `pdf2image`):
-    *   En macOS: `brew install poppler`
-    *   En Ubuntu: `sudo apt-get install poppler-utils`
-3.  Una API Key de Google Gemini válida.
+1.  Python 3.9 or higher.
+2.  Have the `poppler` tool installed (required for `pdf2image`):
+    *   On macOS: `brew install poppler`
+    *   On Ubuntu: `sudo apt-get install poppler-utils`
+3.  A valid Google Gemini API Key.
 
-## ⚙️ Puesta a Punto (Instalación)
+### Installation
 
-1. **Clonar el repositorio:**
+1. **Clone the repository:**
    ```bash
    git clone git@github.com:WwaLlasS/ocr-microservice-ai.git
    cd ocr-microservice-ai
    ```
 
-2. **Crear y activar un entorno virtual (Recomendado):**
+2. **Create and activate a virtual environment (Recommended):**
    ```bash
    python3 -m venv .venvs/ocr-service-env
    source .venvs/ocr-service-env/bin/activate
    ```
 
-3. **Instalar dependencias:**
+3. **Install dependencies:**
    ```bash
    pip install -r requirements.txt
    ```
 
-4. **Configurar variables de entorno:**
-   Crea un archivo llamado `.env` en la raíz del proyecto y agrega tu clave de API de Gemini:
+4. **Configure environment variables:**
+   Create a file named `.env` in the project root and add your API key:
    ```env
-   GEMINI_API_KEY=tu_api_key_aqui
+   GEMINI_API_KEY=your_api_key_here
    ```
 
-## 🏃 Modo de Uso
+## 🏃 Usage
 
-Para levantar el servidor de desarrollo, simplemente ejecuta el archivo principal:
+To start the development server, run the main file:
 
 ```bash
 python3 main.py
 ```
-*El sistema iniciará el servidor `uvicorn` en `http://127.0.0.1:8000`.*
+*The system will start the `uvicorn` server at `http://127.0.0.1:8000`.*
+
+---
+
+## 📡 API Usage
 
 ### Endpoint: `POST /extract`
 
-Este es el endpoint habilitado para procesar los documentos. Acepta requests tipo `multipart/form-data`.
+This is the main endpoint enabled to process documents. It accepts `multipart/form-data` requests.
 
-**Parámetros:**
-*   `files` (lista de `File`): Los archivos que deseas procesar (Puedes subir múltiples archivos de diferente extensión a la vez).
-*   `requirements` (`Form`): Una cadena de texto natural con las instrucciones concretas de lo que deseas extraer de esos documentos.
+**Parameters:**
+*   `files` (list of `File`): The files you want to process (You can upload multiple files of different extensions at once).
+*   `requirements` (`Form`): A natural text string with concrete instructions on what you want to extract from those documents.
 
-**Ejemplo usando cURL:**
+**Example using cURL:**
 
 ```bash
 curl -X 'POST' \
   'http://127.0.0.1:8000/extract' \
   -H 'accept: application/json' \
   -H 'Content-Type: multipart/form-data' \
-  -F 'requirements="Extrae el Nombre Completo, Número de Identidad, y Fecha de Nacimiento. Devuelve formato JSON."' \
-  -F 'files=@pasaporte.jpg' \
-  -F 'files=@acta_nacimiento.pdf'
+  -F 'requirements="Extract the Full Name, Identity Number, and Date of Birth. Return JSON format."' \
+  -F 'files=@passport.jpg' \
+  -F 'files=@birth_certificate.pdf'
 ```
 
-**Respuesta Esperada (JSON):**
+**Expected Response (JSON):**
 ```json
 {
   "results": [
     {
-      "filename": "pasaporte.jpg",
+      "filename": "passport.jpg",
       "status": "success",
       "extracted_data": {
-        "Nombre Completo": "Juan Perez",
-        "Número de Identidad": "123456789",
-        "Fecha de Nacimiento": "1990-01-01"
-      },
-      "error": null
+        "Full Name": "Juan Perez",
+        "Identity Number": "123456789",
+        "Date of Birth": "1990-01-01"
+      }
     },
     {
-      "filename": "acta_nacimiento.pdf",
+      "filename": "birth_certificate.pdf",
       "status": "success",
       "extracted_data": { ... }
     }
@@ -106,21 +107,20 @@ curl -X 'POST' \
 }
 ```
 
-## 🏗️ Estructura del Proyecto
+## 🏗️ Project Structure
 
 ```text
 ocr-microservice-ai/
-├── main.py                 # Entrypoint de FastAPI y declaración de rutas
-├── requirements.txt        # Dependencias de Python
-├── .env                    # Variables de entorno (No se debe commitear)
-├── services/               # Lógica de negocio
-│   ├── ai_service.py       # Cliente configurado con Gemini 2.5 Flash
-│   ├── ocr_engine.py       # Inicialización y abstracción de PaddleOCR
-│   ├── pdf_processor.py    # Extracción de texto nativo y conversión a imagen para PDF
-│   └── word_processor.py   # Lógica de extracción para .docx
+├── main.py                 # FastAPI entrypoint and main route declaration
+├── requirements.txt        # Python dependencies
+├── .env                    # Environment variables (Should not be committed)
+├── services/               # Business logic
+│   ├── ai_service.py       # Main controller interacting with Gemini Vision
+│   ├── pdf_processor.py    # Native text extraction and PDF to image conversion
+│   └── word_processor.py   # Extraction logic for .docx documents
 └── utils/
-    └── schemas.py          # Definición de modelos Pydantic (MultiOCRResponse, etc.)
+    └── schemas.py          # Definition of Pydantic response models
 ```
 
-## 🐛 Notas de Desarrollo y Troubleshooting
-* **Errores de OCR en macOS (`ocr.ocr` se queda pegado):** La inicialización de `PaddleOCR` no es *thread safe* en todos los sistemas. Para evitar colapsos ("deadlocks") con FastAPI en entornos Apple Silicon, la extracción visual de `ocr_engine` en `main.py` se ejecuta **síncronamente** sin utilizar `run_in_threadpool`. Las imágenes mayores de 2500px, por defecto, se redimensionan para asegurar un rendimiento óptimo en un único intento y así evitar errores internos en el motor nativo de PaddleOCR.
+## 🔄 Historical Note on Migration from Local Engines
+Previous versions of this service relied on native OCR engines like **PaddleOCR**. To solve intrinsic stability issues (deadlocks in FastAPI when processing C++ libraries) detected mainly on macOS, as well as heavy installation requirements (PyTorch/PaddlePaddle), the architecture **was migrated 100% to the cloud using Gemini Vision**. This results in a lighter, more stable service, with a much higher level of contextual understanding (e.g., to extract data from IDs) than traditional OCRs.

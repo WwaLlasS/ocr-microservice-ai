@@ -1,4 +1,5 @@
 import os
+import traceback
 # Configurar variables de entorno para evitar cuelgues en macOS con PaddlePaddle
 os.environ["OMP_NUM_THREADS"] = "1"
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
@@ -13,18 +14,15 @@ class OCREngine:
         # Inicializa PaddleOCR con lo mínimo indispensable para evitar conflictos en macOS
         print("Iniciando motor PaddleOCR v3...")
         try:
-            # En v3.4.0 (PaddleX), a veces menos es más para estabilidad en CPU
+            # En v3.4.0, simplificamos al máximo para evitar ValueError: Unknown argument
             self.ocr = PaddleOCR(
                 lang='es',
-                use_gpu=False,
-                use_angle_cls=False, # Reducimos carga computacional
-                show_log=False,
-                use_mp=False, # Desactivar multi-proceso para evitar bloqueos en macOS
                 device='cpu'
             )
             print("Motor PaddleOCR listo.")
         except Exception as e:
-            print(f"Error al inicializar PaddleOCR: {e}")
+            print("!!! Error crítico al inicializar PaddleOCR !!!")
+            traceback.print_exc()
             self.ocr = None
 
     def extract_text(self, image_path_or_array):
@@ -40,20 +38,26 @@ class OCREngine:
         
         try:
             # En PaddleOCR 3.4.0, ocr() es un alias de predict()
-            # Desactivamos multi-procesamiento interno (use_mp=False) para evitar deadlocks en macOS/Threadpool
-            result = self.ocr.ocr(image_path_or_array, cls=False)
+            # Quitamos 'cls' porque genera error en v3
+            result = self.ocr.ocr(image_path_or_array)
             
             end_time = time.time()
             print(f"--- [DEBUG] ocr.ocr finalizado en {end_time - start_time:.2f}s ---")
             
+            if result:
+                print(f"--- [DEBUG] Estructura de resultado: {type(result)} ---")
+            
             full_text = []
-            if result and len(result) > 0 and result[0] is not None:
-                # El formato de salida puede variar en v3, pero intentamos mantener compatibilidad
-                # result[0] suele ser la lista de líneas detectadas
-                for line in result[0]:
-                    if isinstance(line, list) and len(line) > 1:
-                        text = line[1][0]
-                        full_text.append(text)
+            if result and len(result) > 0:
+                # En v3, si es una lista de resultados (uno por imagen)
+                # cada resultado puede ser una lista de líneas o un objeto Result
+                for res in result:
+                    if res is None: continue
+                    # Si es el formato clásico de PaddleOCR [[box, [text, score]], ...]
+                    for line in res:
+                        if isinstance(line, list) and len(line) > 1:
+                            text = line[1][0]
+                            full_text.append(text)
             
             return " ".join(full_text)
         except Exception as e:

@@ -58,7 +58,7 @@ async def extract_data(
                     page_texts = []
                     for i, img in enumerate(images):
                         print(f"[{file.filename}] Procesando OCR de página {i+1}/{len(images)}...")
-                        page_texts.append(ocr_service.extract_text(img))
+                        page_texts.append(await run_in_threadpool(ocr_service.extract_text, img))
                     raw_text = "\n".join(page_texts)
                     print(f"[{file.filename}] OCR finalizado.")
                 else:
@@ -76,7 +76,7 @@ async def extract_data(
                     image.thumbnail((MAX_DIM, MAX_DIM))
                 
                 print(f"[{file.filename}] Procesando OCR de imagen...")
-                raw_text = ocr_service.extract_text(np.array(image))
+                raw_text = await run_in_threadpool(ocr_service.extract_text, np.array(image))
                 print(f"[{file.filename}] OCR finalizado.")
             
             elif file.content_type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":

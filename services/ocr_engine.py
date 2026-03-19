@@ -1,8 +1,12 @@
+import os
+# Configurar variables de entorno para evitar cuelgues en macOS con PaddlePaddle
+os.environ["OMP_NUM_THREADS"] = "1"
+os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+
 from paddleocr import PaddleOCR
 import numpy as np
 from PIL import Image
 import time
-import os
 
 class OCREngine:
     def __init__(self):
@@ -12,6 +16,10 @@ class OCREngine:
             # En v3.4.0 (PaddleX), a veces menos es más para estabilidad en CPU
             self.ocr = PaddleOCR(
                 lang='es',
+                use_gpu=False,
+                use_angle_cls=False, # Reducimos carga computacional
+                show_log=False,
+                use_mp=False, # Desactivar multi-proceso para evitar bloqueos en macOS
                 device='cpu'
             )
             print("Motor PaddleOCR listo.")
@@ -28,18 +36,18 @@ class OCREngine:
             return "Error: Motor OCR no inicializado"
 
         start_time = time.time()
-        print(f"--- [DEBUG] Iniciando ocr.predict ---")
+        print(f"--- [DEBUG] Iniciando ocr.ocr (predict) ---")
         
         try:
             # En PaddleOCR 3.4.0, ocr() es un alias de predict()
-            # Si se cuelga aquí, es un problema interno de PaddlePaddle 3.0.0 en macOS
-            result = self.ocr.ocr(image_path_or_array)
+            # Desactivamos multi-procesamiento interno (use_mp=False) para evitar deadlocks en macOS/Threadpool
+            result = self.ocr.ocr(image_path_or_array, cls=False)
             
             end_time = time.time()
-            print(f"--- [DEBUG] ocr.predict finalizado en {end_time - start_time:.2f}s ---")
+            print(f"--- [DEBUG] ocr.ocr finalizado en {end_time - start_time:.2f}s ---")
             
             full_text = []
-            if result and len(result) > 0:
+            if result and len(result) > 0 and result[0] is not None:
                 # El formato de salida puede variar en v3, pero intentamos mantener compatibilidad
                 # result[0] suele ser la lista de líneas detectadas
                 for line in result[0]:
